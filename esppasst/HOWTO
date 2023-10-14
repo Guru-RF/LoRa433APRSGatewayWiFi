@@ -1,0 +1,1 @@
+esptool.py --port /dev/tty.usbmodem21444301 --baud 115200 --before no_reset write_flash 0 NINA_W102-1.7.5.bin
