@@ -1,4 +1,5 @@
 import asyncio
+import binascii
 import random
 import time
 
@@ -84,7 +85,8 @@ def yellow(data):
 
 
 def red(data):
-    return "\x1b[1;5;31m -- " + data + "\x1b[0m"
+    stamp = "{}".format(_format_datetime(time.localtime()))
+    return "\x1b[1;5;31m[" + str(stamp) + "] " + data + "\x1b[0m"
 
 
 def bgred(data):
@@ -95,7 +97,7 @@ def bgred(data):
 # wait for console
 time.sleep(2)
 
-print(red(f"{config.call} -=- {VERSION}\n"))
+print("\x1b[1;5;31m -- " + f"{config.call} -=- {VERSION}" + "\x1b[0m\n")
 
 try:
     from secrets import secrets
@@ -153,6 +155,8 @@ rtc.RTC().datetime = now
 
 # aprs
 aprs = APRS()
+
+txmsgs = []
 
 
 async def iGateAnnounce():
@@ -309,7 +313,7 @@ async def aprsMsgFeed():
     # read the ARPS feed for text messages and queues them for transmit
     await asyncio.sleep(2)
     print(purple(f"[{config.call}] aprsMsgFeed: receiving APRS messages"))
-    global w, s, rawauthpacket
+    global w, s, rawauthpacket, txmsgs
     while True:
         try:
             while True:
@@ -321,11 +325,12 @@ async def aprsMsgFeed():
                 for line in raw.splitlines():
                     if not line.startswith("#"):
                         if line[0].isupper():
-                            print(line)
-                            station = line.split(">", 1)
-                            print(station)
-                            # ON3URE-11>APRFGB,TCPIP*,qAC,T2IRELAND::ON3URE-13:test901
-                            # return Config.callsign + ">APLRG1,RFONLY,WIDE1-1::" + station + ":" + answer;
+                            station = (line.split(">", 1))[0]
+                            data = (line.split("::", 1))[1]
+                            packet = (
+                                f"{config.call}>APRFGD,RFONLY,WIDE1-1::{station}:{data}"
+                            )
+                            txmsgs.append(packet)
                 await asyncio.sleep(0)
         except socket.timeout:
             continue
@@ -337,7 +342,7 @@ async def aprsMsgFeed():
 
 async def loraRunner(loop):
     await asyncio.sleep(5)
-    global w
+    global w, txmsgs
     # Continuously receives LoRa packets and forwards valid APRS packets
     # via WiFi. Configures LoRa radio, prints status messages, handles
     # exceptions, creates asyncio tasks to process packets.
@@ -367,7 +372,7 @@ async def loraRunner(loop):
                     rawdata = bytes(packet[3:]).decode("utf-8")
                     print(
                         green(
-                            f"[{config.call}] loraRunner: RSSI:{rfm9x.last_rssi} SNR:{rfm9x.last_snr} Data:{rawdata}"
+                            f"[{config.call}] loraRunner: RX: RSSI:{rfm9x.last_rssi} SNR:{rfm9x.last_snr} Data:{rawdata}"
                         )
                     )
                     wifi.pixel_status((100, 100, 0))
@@ -386,6 +391,25 @@ async def loraRunner(loop):
                         )
                     )
                     continue
+        if igate is False:
+            if len(txmsgs) != 0:
+                print()
+                biast.value = False
+                transmit.value = True
+                pa.value = True
+                while len(txmsgs) != 0:
+                    packet = txmsgs.pop(0)
+                    print(red(f"[{config.call}] loraRunner: TX: {packet}"))
+                    await rfm9x.asend(
+                        bytes("{}".format("<"), "UTF-8")
+                        + binascii.unhexlify("FF")
+                        + binascii.unhexlify("01")
+                        + bytes("{}".format(packet), "UTF-8"),
+                    )
+            pa.value = False
+            transmit.value = False
+            if config.biast is True:
+                biast.value = True
 
 
 async def main():
@@ -393,10 +417,13 @@ async def main():
     # and iGate announcement in parallel. Gather the tasks and wait for
     # them to complete wich will never happen ;)
     loop = asyncio.get_event_loop()
-    loraM = asyncio.create_task(aprsMsgFeed())
     loraR = asyncio.create_task(loraRunner(loop))
     loraA = asyncio.create_task(iGateAnnounce())
-    await asyncio.gather(loraA, loraM, loraR)
+    if igate is False:
+        loraM = asyncio.create_task(aprsMsgFeed())
+        await asyncio.gather(loraA, loraM, loraR)
+    else:
+        await asyncio.gather(loraA, loraR)
 
 
 asyncio.run(main())
