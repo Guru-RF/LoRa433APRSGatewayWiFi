@@ -354,6 +354,8 @@ async def loraRunner(loop):
     rfm9x = adafruit_rfm9x.RFM9x(
         spi, CS, RESET, RADIO_FREQ_MHZ, baudrate=1000000, agc=False, crc=True
     )
+    if igate is False:
+        rfm9x.tx_power = 23
 
     while True:
         await asyncio.sleep(0)
