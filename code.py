@@ -37,12 +37,11 @@ biast.direction = Direction.OUTPUT
 biast.value = False
 
 igate = False
-# TODO enable for production
-# if versionPin.value is True:
-#    igate = True
-#    biast = DigitalInOut(board.GP0)
-#    biast.direction = Direction.OUTPUT
-#    biast.value = False
+if versionPin.value is True:
+    igate = True
+    biast = DigitalInOut(board.GP0)
+    biast.direction = Direction.OUTPUT
+    biast.value = False
 
 if config.biast is True:
     biast.value = True
