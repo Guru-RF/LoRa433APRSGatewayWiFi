@@ -16,3 +16,9 @@ symbol = "La"
 biast = False
 # Gateway only
 msgDistance = 300  # distance in km's from source of messages
+# ignore messages from these callsigns
+filtersrc = ["F4IED-12", "LX1CU-13", "F8KSM-3"]
+# if enabled only allow filterdst prefixes
+allowdst = True
+# only broadcast messages with calls starting with these callsign prefixes
+filterdst = ["ON"]

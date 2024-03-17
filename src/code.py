@@ -334,11 +334,16 @@ async def aprsMsgFeed():
                     if not line.startswith("#"):
                         if line[0].isupper():
                             station = (line.split(">", 1))[0]
-                            data = (line.split("::", 1))[1]
-                            packet = (
-                                f"{config.call}>APRFGD,RFONLY,WIDE1-1::{station}:{data}"
-                            )
-                            txmsgs.append(packet)
+                            tmpdata = (line.split("::", 1))[1]
+                            destination = (tmpdata.split(":", 1))[0]
+                            data = (tmpdata.split(":", 1))[1]
+                            packet = f"{config.call}>APRFGD,RFONLY,WIDE1-1::{station}:{destination}:{data}"
+                            if station not in config.filtersrc:
+                                if config.allowdst is True:
+                                    if destination[:2] in config.filterdst:
+                                        txmsgs.append(packet)
+                                else:
+                                    txmsgs.append(packet)
                 await asyncio.sleep(0)
         except socket.timeout:
             continue
@@ -346,6 +351,9 @@ async def aprsMsgFeed():
         except UnicodeError:
             continue
             # we ignore decode errors
+        except IndexError:
+            continue
+            # we ignore wrongly formated msgs
 
 
 async def loraRunner(loop):
