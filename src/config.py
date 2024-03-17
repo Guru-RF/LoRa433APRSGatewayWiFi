@@ -1,4 +1,5 @@
-# Base config
+# Base config for both iGates and Gateways
+
 # I use papertrail but other services are available
 syslogHost = "logs4.papertrailapp.com"
 syslogPort = 24262
@@ -14,6 +15,8 @@ comment = "https://rf.guru LoraAPRSiGate v0.1"
 symbol = "La"
 # Features
 biast = False
+
+
 # Gateway only
 msgDistance = 300  # distance in km's from source of messages
 # ignore messages from these callsigns

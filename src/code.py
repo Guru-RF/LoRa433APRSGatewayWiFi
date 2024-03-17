@@ -159,7 +159,7 @@ while now is None:
 rtc.RTC().datetime = now
 
 # usyslog
-# until we cannot have multiple sockets open this will be only uses to report unrecoverable errors and booting
+# until we cannot have multiple sockets open this will be only used to report unrecoverable errors and booting
 # can be used for debugging and reporting OTA software updates
 syslog = usyslog.UDPClient(
     socket,
@@ -170,7 +170,7 @@ syslog = usyslog.UDPClient(
     process=VERSION + MINOR,
 )
 
-syslog.send(" running!")
+syslog.send("booted and running!")
 
 # aprs
 aprs = APRS()
