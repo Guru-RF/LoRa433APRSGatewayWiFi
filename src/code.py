@@ -56,9 +56,11 @@ if config.biast is True:
 
 # our version
 if igate is True:
-    VERSION = "RF.Guru_APRSiGate 0.1"
+    VERSION = "RF.Guru_APRSiGate"
+    MINOR = "0.0.3"
 else:
-    VERSION = "RF.Guru_APRSGateway 0.1"
+    VERSION = "RF.Guru_APRSGateway"
+    MINOR = "0.0.1"
 
 
 def _format_datetime(datetime):
@@ -73,22 +75,20 @@ def _format_datetime(datetime):
 
 
 def purple(data):
-    s.info(data)
     stamp = "{}".format(_format_datetime(time.localtime()))
-    return "\x1b[38;5;104m[" + str(stamp) + "] " + data + "\x1b[0m"
+    return "\x1b[38;5;104m[" + str(stamp) + "] " + config.call + " " + data + "\x1b[0m"
 
 
 def green(data):
-    s.info(data)
     stamp = "{}".format(_format_datetime(time.localtime()))
-    return "\r\x1b[38;5;112m[" + str(stamp) + "] " + data + "\x1b[0m"
+    return (
+        "\r\x1b[38;5;112m[" + str(stamp) + "] " + config.call + " " + data + "\x1b[0m"
+    )
 
 
 def blue(data):
-    global s
-    s.info(data)
     stamp = "{}".format(_format_datetime(time.localtime()))
-    return "\x1b[38;5;14m[" + str(stamp) + "] " + data + "\x1b[0m"
+    return "\x1b[38;5;14m[" + str(stamp) + "] " + config.call + " " + data + "\x1b[0m"
 
 
 def yellow(data):
@@ -96,21 +96,19 @@ def yellow(data):
 
 
 def red(data):
-    s.info(data)
     stamp = "{}".format(_format_datetime(time.localtime()))
-    return "\x1b[1;5;31m[" + str(stamp) + "] " + data + "\x1b[0m"
+    return "\x1b[1;5;31m[" + str(stamp) + "] " + config.call + " " + data + "\x1b[0m"
 
 
 def bgred(data):
-    s.info(data)
     stamp = "{}".format(_format_datetime(time.localtime()))
-    return "\x1b[41m[" + str(stamp) + "] " + data + "\x1b[0m"
+    return "\x1b[41m[" + str(stamp) + "] " + config.call + data + "\x1b[0m"
 
 
 # wait for console
 time.sleep(2)
 
-print("\x1b[1;5;31m -- " + f"{config.call} -=- {VERSION}" + "\x1b[0m\n")
+print("\x1b[1;5;31m -- " + f"{config.call} -=- {VERSION} {MINOR}" + "\x1b[0m\n")
 
 try:
     from secrets import secrets
@@ -150,7 +148,7 @@ socket.set_interface(esp)
 requests.set_socket(socket, esp)
 
 # aprs auth packet
-rawauthpacket = f"user {config.call} pass {config.passcode} vers {VERSION} filter t/m/{config.call}/{config.msgDistance}\n"
+rawauthpacket = f"user {config.call} pass {config.passcode} vers {VERSION} {MINOR} filter t/m/{config.call}/{config.msgDistance}\n"
 
 now = None
 while now is None:
@@ -161,19 +159,23 @@ while now is None:
 rtc.RTC().datetime = now
 
 # usyslog
-s = usyslog.UDPClient(
-    socket, esp, hostname=config.call, host=config.syslogHost, port=config.syslogPort
+# until we cannot have multiple sockets open this will be only uses to report unrecoverable errors and booting
+# can be used for debugging and reporting OTA software updates
+syslog = usyslog.UDPClient(
+    socket,
+    esp,
+    hostname=config.call,
+    host=config.syslogHost,
+    port=config.syslogPort,
+    process=VERSION + MINOR,
 )
-s.info("test")
 
-while True:
-    time.sleep(30)
-    s.info("test")
-
+syslog.send(" running!")
 
 # aprs
 aprs = APRS()
 
+# tx msg buffer
 txmsgs = []
 
 # configure watchdog
@@ -181,25 +183,26 @@ w.timeout = 5
 w.mode = WatchDogMode.RESET
 w.feed()
 
+# configure tcp socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(4)
+socketaddr = socket.getaddrinfo(config.aprs_host, config.aprs_port)[0][4]
+
 
 async def iGateAnnounce():
     # Periodically sends status packets and position packets to the APRS-IS server over TCP.
     # Handles reconnecting if the send fails.
     global w, s, rawauthpacket
     try:
-        socket.set_interface(esp)
-        requests.set_socket(socket, esp)
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(4)
-        socketaddr = socket.getaddrinfo(config.aprs_host, config.aprs_port)[0][4]
         s.connect(socketaddr)
+        s.settimeout(4)
         s.send(bytes(rawauthpacket, "utf-8"))
         w.feed()
     except Exception as error:
-        print(bgred(f"[{config.call}] init: An exception occurred: {error}"))
+        print(bgred(f"init: An exception occurred: {error}"))
         print(
             purple(
-                f"[{config.call}] init: Connect to ARPS {config.aprs_host} {config.aprs_port} Failed ! Lost Packet ! Restarting System !"
+                f"init: Connect to ARPS {config.aprs_host} {config.aprs_port} Failed ! Lost Packet ! Restarting System !"
             )
         )
         microcontroller.reset()
@@ -214,38 +217,29 @@ async def iGateAnnounce():
         try:
             s.send(bytes(rawpacket, "utf-8"))
         except Exception as error:
-            print(bgred(f"[{config.call}] iGateStatus: An exception occurred: {error}"))
+            print(bgred(f"iGateStatus: An exception occurred: {error}"))
             print(
                 purple(
-                    f"[{config.call}] iGateStatus: Reconnecting to ARPS {config.aprs_host} {config.aprs_port}"
+                    f"iGateStatus: Reconnecting to ARPS {config.aprs_host} {config.aprs_port}"
                 )
             )
             s.close()
-            socket.set_interface(esp)
-            requests.set_socket(socket, esp)
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(4)
             try:
-                socketaddr = socket.getaddrinfo(config.aprs_host, config.aprs_port)[0][
-                    4
-                ]
                 s.connect(socketaddr)
                 w.feed()
+                s.settimeout(4)
                 s.send(bytes(rawauthpacket, "utf-8"))
                 s.send(bytes(rawpacket, "utf-8"))
             except Exception as error:
-                print(
-                    bgred(
-                        f"[{config.call}] iGateStatus: An exception occurred: {error}"
-                    )
-                )
+                print(bgred(f"iGateStatus: An exception occurred: {error}"))
+                syslog.send(f"iGateStatus: An exception occurred: {error}")
                 print(
                     purple(
-                        f"[{config.call}] Connect to ARPS {config.aprs_host} {config.aprs_port} Failed ! Lost Packet ! Restarting system !"
+                        f"Connect to ARPS {config.aprs_host} {config.aprs_port} Failed ! Lost Packet ! Restarting system !"
                     )
                 )
                 microcontroller.reset()
-        print(purple(f"[{config.call}] iGateStatus: {rawpacket}"), end="")
+        print(purple(f"iGateStatus: {rawpacket}"), end="")
         aprs = APRS()
         pos = aprs.makePosition(
             config.latitude, config.longitude, -1, -1, config.symbol
@@ -256,41 +250,33 @@ async def iGateAnnounce():
         message = f"{config.call}>APRFGI,TCPIP*:@{ts}{pos}{comment}\n"
         try:
             w.feed()
+            s.settimeout(4)
             s.send(bytes(message, "utf-8"))
         except Exception as error:
-            print(bgred(f"[{config.call}] iGateStatus: An exception occurred: {error}"))
+            print(bgred(f"iGateStatus: An exception occurred: {error}"))
             print(
                 purple(
-                    f"[{config.call}] iGateStatus: Reconnecting to ARPS {config.aprs_host} {config.aprs_port}"
+                    f"iGateStatus: Reconnecting to ARPS {config.aprs_host} {config.aprs_port}"
                 )
             )
             s.close()
-            socket.set_interface(esp)
-            requests.set_socket(socket, esp)
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(4)
             try:
-                socketaddr = socket.getaddrinfo(config.aprs_host, config.aprs_port)[0][
-                    4
-                ]
                 s.connect(socketaddr)
                 w.feed()
+                s.settimeout(4)
                 s.send(bytes(rawauthpacket, "utf-8"))
                 s.send(bytes(message, "utf-8"))
             except Exception as error:
-                print(
-                    bgred(
-                        f"[{config.call}] iGateStatus: An exception occurred: {error}"
-                    )
-                )
+                print(bgred(f"iGateStatus: An exception occurred: {error}"))
+                syslog.send(f"iGateStatus: An exception occurred: {error}")
                 print(
                     purple(
-                        f"[{config.call}] iGateStatus: Connect to ARPS {config.aprs_host} {config.aprs_port} Failed ! Lost Packet ! Restarting system !"
+                        f"iGateStatus: Connect to ARPS {config.aprs_host} {config.aprs_port} Failed ! Lost Packet ! Restarting system !"
                     )
                 )
                 microcontroller.reset()
 
-        print(purple(f"[{config.call}] iGatePossition: {message}"), end="")
+        print(purple(f"iGatePossition: {message}"), end="")
         await asyncio.sleep(15 * 60)
 
 
@@ -305,39 +291,36 @@ async def tcpPost(packet):
         s.settimeout(4)
         s.send(bytes(rawpacket, "utf-8"))
     except Exception as error:
-        print(bgred(f"[{config.call}] aprsTCPSend: An exception occurred: {error}"))
+        print(bgred(f"aprsTCPSend: An exception occurred: {error}"))
         print(
             purple(
-                f"[{config.call}] aprsTCPSend: Reconnecting to ARPS {config.aprs_host} {config.aprs_port}"
+                f"aprsTCPSend: Reconnecting to ARPS {config.aprs_host} {config.aprs_port}"
             )
         )
         s.close()
-        socket.set_interface(esp)
-        requests.set_socket(socket, esp)
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(4)
         try:
-            socketaddr = socket.getaddrinfo(config.aprs_host, config.aprs_port)[0][4]
             s.connect(socketaddr)
             w.feed()
+            s.settimeout(4)
             s.send(bytes(rawauthpacket, "utf-8"))
             s.send(bytes(rawpacket, "utf-8"))
         except Exception as error:
-            print(bgred(f"[{config.call}] aprsTCPSend: An exception occurred: {error}"))
+            print(bgred(f"aprsTCPSend: An exception occurred: {error}"))
+            syslog.send(f"aprsTCPSend: An exception occurred: {error}")
             print(
                 purple(
-                    f"[{config.call}] aprsTCPSend: Reconnecting to ARPS {config.aprs_host} {config.aprs_port} Failed ! Lost Packet ! Restarting system !"
+                    f"aprsTCPSend: Reconnecting to ARPS {config.aprs_host} {config.aprs_port} Failed ! Lost Packet ! Restarting system !"
                 )
             )
             microcontroller.reset()
-    print(blue(f"[{config.call}] aprsTCPSend: {packet}"))
+    print(blue(f"aprsTCPSend: {packet}"))
     await asyncio.sleep(0)
 
 
 async def aprsMsgFeed():
     # read the ARPS feed for text messages and queues them for transmit
     await asyncio.sleep(2)
-    print(purple(f"[{config.call}] aprsMsgFeed: receiving APRS messages"))
+    print(purple("aprsMsgFeed: receiving APRS messages"))
     global w, s, rawauthpacket, txmsgs
     while True:
         try:
@@ -387,20 +370,18 @@ async def loraRunner(loop):
         w.feed()
         timeout = int(loraTimeout) + random.randint(1, 9)
         print(
-            purple(
-                f"[{config.call}] loraRunner: Waiting for lora APRS packet timeout:{timeout} ...\r"
-            ),
+            purple(f"loraRunner: Waiting for lora APRS packet timeout:{timeout} ...\r"),
             end="",
         )
-        packet = rfm9x.receive(w, with_header=True, timeout=timeout)
-        # packet = await rfm9x.areceive(with_header=True, timeout=timeout)
+        # packet = rfm9x.receive(w, with_header=True, timeout=timeout)
+        packet = await rfm9x.areceive(w, with_header=True, timeout=timeout)
         if packet is not None:
             if packet[:3] == (b"<\xff\x01"):
                 try:
                     rawdata = bytes(packet[3:]).decode("utf-8")
                     print(
                         green(
-                            f"[{config.call}] loraRunner: RX: RSSI:{rfm9x.last_rssi} SNR:{rfm9x.last_snr} Data:{rawdata}"
+                            f"loraRunner: RX: RSSI:{rfm9x.last_rssi} SNR:{rfm9x.last_snr} Data:{rawdata}"
                         )
                     )
                     wifi.pixel_status((100, 100, 0))
@@ -408,16 +389,9 @@ async def loraRunner(loop):
                     await asyncio.sleep(0)
                     wifi.pixel_status((0, 100, 0))
                 except Exception as error:
-                    print(
-                        bgred(
-                            f"[{config.call}] loraRunner: An exception occurred: {error}"
-                        )
-                    )
-                    print(
-                        purple(
-                            f"[{config.call}] loraRunner: Lost Packet, unable to decode, skipping"
-                        )
-                    )
+                    print(bgred(f"loraRunner: An exception occurred: {error}"))
+                    syslog.send(f"loraRunner: An exception occurred: {error}")
+                    print(purple("loraRunner: Lost Packet, unable to decode, skipping"))
                     continue
         if igate is False:
             if len(txmsgs) != 0:
@@ -428,7 +402,7 @@ async def loraRunner(loop):
                 while len(txmsgs) != 0:
                     w.feed()
                     packet = txmsgs.pop(0)
-                    print(red(f"[{config.call}] loraRunner: TX: {packet}"))
+                    print(red(f"loraRunner: TX: {packet}"))
                     await rfm9x.asend(
                         bytes("{}".format("<"), "UTF-8")
                         + binascii.unhexlify("FF")
