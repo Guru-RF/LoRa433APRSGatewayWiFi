@@ -61,9 +61,9 @@ if config.biast is True:
 
 # board version
 if igate is True:
-    VERSION = "RF.Guru_APRSiGate"
+    VERSION = "APRSiGate"
 else:
-    VERSION = "RF.Guru_APRSGateway"
+    VERSION = "APRSGateway"
 
 
 def _format_datetime(datetime):
@@ -169,35 +169,39 @@ w.mode = WatchDogMode.RESET
 w.feed()
 
 if storage.getmount("/").readonly is False:
-    UPDATE_URL = (
-        "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/ota"
-    )
-    response = requests.get(UPDATE_URL)
+    try:
+        UPDATE_URL = (
+            "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/ota"
+        )
+        response = requests.get(UPDATE_URL)
 
-    if response.status_code == 200:
-        OTARELEASE = response.content.decode("utf-8")
-        if OTARELEASE != RELEASE:
-            print(
-                yellow(
-                    f"OTA update available old:{RELEASE} new:{OTARELEASE}, updating..."
+        if response.status_code == 200:
+            OTARELEASE = response.content.decode("utf-8")
+            if OTARELEASE != RELEASE:
+                print(
+                    yellow(
+                        f"OTA update available old:{RELEASE} new:{OTARELEASE}, updating..."
+                    )
                 )
-            )
 
-            # OTA update simplified
-            UPDATE_URL = "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/code.py"
-            response = requests.get(UPDATE_URL)
+                # OTA update simplified
+                UPDATE_URL = "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/code.py"
+                response = requests.get(UPDATE_URL)
 
-            if response.status_code == 200:
-                print(yellow("OTA update available, downloading..."))
-                with open("ota.py", "wb") as f:
-                    for chunk in response.iter_content(chunk_size=32):
-                        f.write(chunk)
-                        w.feed()
-                print(yellow("OTA update complete, restarting..."))
-                microcontroller.reset()
-        else:
-            print(yellow("no OTA update available"))
-            print()
+                if response.status_code == 200:
+                    print(yellow("OTA update available, downloading..."))
+                    with open("ota.py", "wb") as f:
+                        for chunk in response.iter_content(chunk_size=32):
+                            f.write(chunk)
+                            w.feed()
+                    print(yellow("OTA update complete, restarting..."))
+                    microcontroller.reset()
+            else:
+                print(yellow("no OTA update available"))
+                print()
+    except TimeoutError as error:
+        print(yellow(f"OTA unavailable {error}"))
+        print()
 
 # usyslog
 # until we cannot have multiple sockets open
@@ -276,12 +280,11 @@ async def iGateAnnounce():
                 )
                 microcontroller.reset()
         print(purple(f"iGateStatus: {rawpacket}"), end="")
-        aprs = APRS()
         pos = aprs.makePosition(
             config.latitude, config.longitude, -1, -1, config.symbol
         )
         altitude = "/A={:06d}".format(int(config.altitude * 3.2808399))
-        comment = config.comment + altitude
+        comment = VERSION + "." + RELEASE + " " + config.comment + altitude
         ts = aprs.makeTimestamp("z", now.tm_mday, now.tm_hour, now.tm_min, now.tm_sec)
         message = f"{config.call}>APRFGI,TCPIP*:@{ts}{pos}{comment}\n"
         try:
@@ -381,9 +384,9 @@ async def aprsMsgFeed():
                                 else:
                                     txmsgs.append(packet)
                 await asyncio.sleep(0)
-        except socket.timeout:
+        except TimeoutError:
             continue
-            # we ignore the timeout
+        # we ignore the timeout
         except UnicodeError:
             continue
             # we ignore decode errors
