@@ -23,7 +23,7 @@ from watchdog import WatchDogMode
 import config
 
 # software release
-RELEASE = "0.0.9"
+RELEASE = "1.0"
 
 # stop autoreloading
 supervisor.runtime.autoreload = False
@@ -214,6 +214,22 @@ syslog = usyslog.UDPClient(
     port=config.syslogPort,
     process=VERSION + RELEASE,
 )
+
+if config.call == "":
+    syslog.send("callsign missing!")
+    print()
+    print(red("callsign is empty, please set callsign in config.py"))
+    while True:
+        w.feed()
+        time.sleep(1)
+
+if config.passcode == "":
+    syslog.send("callsign missing!")
+    print()
+    print(red("callsign is empty, please set passcode in config.py"))
+    while True:
+        w.feed()
+        time.sleep(1)
 
 syslog.send("Alive and kicking!")
 

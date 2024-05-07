@@ -1,15 +1,15 @@
 # Base config for both iGates and Gateways
 
-# I use papertrail but other services are available
+# We use papertrail, it logs unrecoverable errors so we can fix them in future updates
 syslogHost = "logs4.papertrailapp.com"
 syslogPort = 24262
 # APRS
-call = "ON6URE-5"
+call = ""
 aprs_host = "belgium.aprs2.net"
 aprs_port = 14580
-passcode = "23996"  # https://apps.magicbug.co.uk/passcode/index.php/passcode
-latitude = 51.1517227
-longitude = 2.7649157
+passcode = ""  # https://apps.magicbug.co.uk/passcode/
+latitude = 52.1517227
+longitude = 3.7649157
 altitude = 46  # in meters
 comment = "https://rf.guru"
 # Gateway symbol
