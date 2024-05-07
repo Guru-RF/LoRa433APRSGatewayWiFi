@@ -4,9 +4,7 @@ import random
 import time
 
 import adafruit_connection_manager
-import adafruit_esp32spi.adafruit_esp32spi_socketpool as socket
 import adafruit_requests
-import adafruit_requests as requests
 import adafruit_rfm9x
 import adafruit_rgbled
 import board
