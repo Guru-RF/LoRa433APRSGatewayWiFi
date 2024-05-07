@@ -20,6 +20,7 @@ if [ -d "$DIR" ]; then
   echo "1" > /Volumes/CIRCUITPY/sequence
   cp config.py /Volumes/CIRCUITPY
   cp code.py /Volumes/CIRCUITPY
+  cp secrets.py /Volumes/CIRCUITPY
   sync
   diskutil unmount /Volumes/CIRCUITPY
   echo "done"
