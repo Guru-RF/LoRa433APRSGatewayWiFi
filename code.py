@@ -15,6 +15,7 @@ import microcontroller
 import rtc
 import storage
 import supervisor
+import usyslog
 from adafruit_esp32spi import PWMOut, adafruit_esp32spi, adafruit_esp32spi_wifimanager
 from APRS import APRS
 from digitalio import DigitalInOut, Direction, Pull
@@ -58,7 +59,7 @@ if config.biast is True:
     biast.value = True
 
 # our version
-RELEASE = "0.0.3"
+RELEASE = "0.0.4"
 if igate is True:
     VERSION = "RF.Guru_APRSiGate"
 else:
@@ -149,7 +150,6 @@ print()
 pool = adafruit_connection_manager.get_radio_socketpool(esp)
 ssl_context = adafruit_connection_manager.get_radio_ssl_context(esp)
 requests = adafruit_requests.Session(pool, ssl_context)
-# socket = pool.socket(type=pool.SOCK_DGRAM)
 
 
 # aprs auth packet
@@ -163,20 +163,6 @@ while now is None:
         pass
 rtc.RTC().datetime = now
 
-# usyslog
-# until we cannot have multiple sockets open this will be only used to report unrecoverable errors and booting
-# can be used for debugging and reporting OTA software updates
-# syslog = usyslog.UDPClient(
-#    pool,
-#    esp,
-#    hostname=config.call,
-#    host=config.syslogHost,
-#    port=config.syslogPort,
-#    process=VERSION + RELEASE,
-# )
-
-# syslog.send("booted and running!")
-
 if storage.getmount("/").readonly is False:
     UPDATE_URL = (
         "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/ota"
@@ -184,26 +170,38 @@ if storage.getmount("/").readonly is False:
     response = requests.get(UPDATE_URL)
 
     if response.status_code == 200:
-        OTARELEASE = response.content
+        OTARELEASE = response.content.decode("utf-8")
         if OTARELEASE != RELEASE:
-            print(yellow("OTA update available, updating..."))
+            print(yellow(f"OTA update available {OTARELEASE}, updating..."))
 
             # OTA update simplified
             UPDATE_URL = "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/code.py"
             response = requests.get(UPDATE_URL)
 
             if response.status_code == 200:
-                # syslog.send("OTA update available, updating...")
-                print(yellow("OTA update available, updating..."))
+                print(yellow("OTA update available, downloading..."))
                 with open("ota.py", "wb") as f:
-                    for chunk in response.iter_content(chunk_size=1024):
+                    for chunk in response.iter_content(chunk_size=32):
                         f.write(chunk)
                 print(yellow("OTA update complete, restarting..."))
-                # syslog.send("OTA update complete, restarting...")
-                # machine.reset()
+                microcontroller.reset()
         else:
-            print(red("OTA update not available"))
-    # syslog.send("response.text: " + response.text)
+            print(yellow("no OTA update available"))
+            print()
+
+# usyslog
+# until we cannot have multiple sockets open
+# this can be used for debugging and reporting software updates
+syslog = usyslog.UDPClient(
+    pool,
+    esp,
+    hostname=config.call,
+    host=config.syslogHost,
+    port=config.syslogPort,
+    process=VERSION + RELEASE,
+)
+
+syslog.send(f"Booted and running {VERSION} {RELEASE}!")
 
 # aprs
 aprs = APRS()
@@ -217,9 +215,9 @@ w.mode = WatchDogMode.RESET
 w.feed()
 
 # configure tcp socket
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s = pool.socket(type=pool.SOCK_STREAM)
 s.settimeout(4)
-socketaddr = socket.getaddrinfo(config.aprs_host, config.aprs_port)[0][4]
+socketaddr = pool.getaddrinfo(config.aprs_host, config.aprs_port)[0][4]
 
 
 async def iGateAnnounce():

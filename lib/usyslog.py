@@ -54,7 +54,7 @@ class SyslogClient:
 class UDPClient(SyslogClient):
     def __init__(
         self,
-        socket,
+        pool,
         esp,
         hostname="unknown",
         host="127.0.0.1",
@@ -65,6 +65,6 @@ class UDPClient(SyslogClient):
 
         self._esp = esp
         self._hostname = hostname
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._socketaddr = socket.getaddrinfo(host, port)[0][4]
+        self._sock = pool.socket(type=pool.SOCK_DGRAM)
+        self._socketaddr = pool.getaddrinfo(host, port)[0][4]
         self._sock.settimeout(4)

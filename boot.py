@@ -5,6 +5,8 @@
 #   - If not pressed, disables USB drive and enables console
 # - Remounts filesystem as read-only
 # - Sets USB drive name if enabled
+import os
+
 import board
 import storage
 import usb_cdc
@@ -20,6 +22,15 @@ btn = DigitalInOut(board.GP15)
 btn.direction = Direction.INPUT
 btn.pull = Pull.UP
 
+
+def file_or_dir_exists(filename):
+    try:
+        os.stat(filename)
+        return True
+    except OSError:
+        return False
+
+
 # default disable usb drive
 if btn.value is True:
     print("boot: button not pressed, disabling drive")
@@ -27,6 +38,12 @@ if btn.value is True:
     storage.remount("/", readonly=False)
 
     usb_cdc.enable(console=True, data=False)
+    if file_or_dir_exists("ota.py"):
+        print("boot: installing new release")
+        os.remove("code.py")
+        os.rename("ota.py", "code.py")
+
+
 else:
     print("boot: button pressed, enable console, enabling drive")
 
