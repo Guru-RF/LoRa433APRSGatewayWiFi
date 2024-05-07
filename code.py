@@ -3,7 +3,9 @@ import binascii
 import random
 import time
 
-import adafruit_esp32spi.adafruit_esp32spi_socket as socket
+import adafruit_connection_manager
+import adafruit_esp32spi.adafruit_esp32spi_socketpool as socket
+import adafruit_requests
 import adafruit_requests as requests
 import adafruit_rfm9x
 import adafruit_rgbled
@@ -13,7 +15,6 @@ import microcontroller
 import rtc
 import storage
 import supervisor
-import usyslog
 from adafruit_esp32spi import PWMOut, adafruit_esp32spi, adafruit_esp32spi_wifimanager
 from APRS import APRS
 from digitalio import DigitalInOut, Direction, Pull
@@ -57,12 +58,11 @@ if config.biast is True:
     biast.value = True
 
 # our version
+RELEASE = "0.0.3"
 if igate is True:
     VERSION = "RF.Guru_APRSiGate"
-    MINOR = "0.0.3"
 else:
     VERSION = "RF.Guru_APRSGateway"
-    MINOR = "0.0.1"
 
 
 def _format_datetime(datetime):
@@ -110,7 +110,7 @@ def bgred(data):
 # wait for console
 time.sleep(2)
 
-print("\x1b[1;5;31m -- " + f"{config.call} -=- {VERSION} {MINOR}" + "\x1b[0m\n")
+print("\x1b[1;5;31m -- " + f"{config.call} -=- {VERSION} {RELEASE}" + "\x1b[0m\n")
 
 try:
     from secrets import secrets
@@ -146,11 +146,14 @@ print(yellow("Connected to: [" + str(esp.ssid, "utf-8") + "]\tRSSI:" + str(esp.r
 print()
 
 # Initialize a requests object with a socket and esp32spi interface
-socket.set_interface(esp)
-requests.set_socket(socket, esp)
+pool = adafruit_connection_manager.get_radio_socketpool(esp)
+ssl_context = adafruit_connection_manager.get_radio_ssl_context(esp)
+requests = adafruit_requests.Session(pool, ssl_context)
+# socket = pool.socket(type=pool.SOCK_DGRAM)
+
 
 # aprs auth packet
-rawauthpacket = f"user {config.call} pass {config.passcode} vers {VERSION} {MINOR} filter t/m/{config.call}/{config.msgDistance}\n"
+rawauthpacket = f"user {config.call} pass {config.passcode} vers {VERSION} {RELEASE} filter t/m/{config.call}/{config.msgDistance}\n"
 
 now = None
 while now is None:
@@ -163,34 +166,43 @@ rtc.RTC().datetime = now
 # usyslog
 # until we cannot have multiple sockets open this will be only used to report unrecoverable errors and booting
 # can be used for debugging and reporting OTA software updates
-syslog = usyslog.UDPClient(
-    socket,
-    esp,
-    hostname=config.call,
-    host=config.syslogHost,
-    port=config.syslogPort,
-    process=VERSION + MINOR,
-)
+# syslog = usyslog.UDPClient(
+#    pool,
+#    esp,
+#    hostname=config.call,
+#    host=config.syslogHost,
+#    port=config.syslogPort,
+#    process=VERSION + RELEASE,
+# )
 
-syslog.send("booted and running!")
+# syslog.send("booted and running!")
 
 if storage.getmount("/").readonly is False:
-    # OTA update simplified
-    # UPDATE_URL = "http://pb.rf.guru/6rgd"
-    UPDATE_URL = "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/src/code.py"
+    UPDATE_URL = (
+        "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/ota"
+    )
     response = requests.get(UPDATE_URL)
 
     if response.status_code == 200:
-        syslog.send("OTA update available, updating...")
-        print(yellow("OTA update available, updating..."))
-        with open("ota.py", "wb") as f:
-            for chunk in response.iter_content(chunk_size=1024):
-                f.write(chunk)
-        print(yellow("OTA update complete, restarting..."))
-        syslog.send("OTA update complete, restarting...")
-        # machine.reset()
-    else:
-        print(red("OTA update not available"))
+        OTARELEASE = response.content
+        if OTARELEASE != RELEASE:
+            print(yellow("OTA update available, updating..."))
+
+            # OTA update simplified
+            UPDATE_URL = "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/code.py"
+            response = requests.get(UPDATE_URL)
+
+            if response.status_code == 200:
+                # syslog.send("OTA update available, updating...")
+                print(yellow("OTA update available, updating..."))
+                with open("ota.py", "wb") as f:
+                    for chunk in response.iter_content(chunk_size=1024):
+                        f.write(chunk)
+                print(yellow("OTA update complete, restarting..."))
+                # syslog.send("OTA update complete, restarting...")
+                # machine.reset()
+        else:
+            print(red("OTA update not available"))
     # syslog.send("response.text: " + response.text)
 
 # aprs
