@@ -24,6 +24,9 @@ from watchdog import WatchDogMode
 
 import config
 
+# software release
+RELEASE = "0.0.5"
+
 # stop autoreloading
 supervisor.runtime.autoreload = False
 
@@ -58,8 +61,7 @@ else:
 if config.biast is True:
     biast.value = True
 
-# our version
-RELEASE = "0.0.4"
+# board version
 if igate is True:
     VERSION = "RF.Guru_APRSiGate"
 else:
@@ -172,7 +174,11 @@ if storage.getmount("/").readonly is False:
     if response.status_code == 200:
         OTARELEASE = response.content.decode("utf-8")
         if OTARELEASE != RELEASE:
-            print(yellow(f"OTA update available {OTARELEASE}, updating..."))
+            print(
+                yellow(
+                    f"OTA update available old:{RELEASE} new:{OTARELEASE}, updating..."
+                )
+            )
 
             # OTA update simplified
             UPDATE_URL = "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/code.py"
@@ -188,6 +194,11 @@ if storage.getmount("/").readonly is False:
         else:
             print(yellow("no OTA update available"))
             print()
+
+# configure watchdog
+w.timeout = 5
+w.mode = WatchDogMode.RESET
+w.feed()
 
 # usyslog
 # until we cannot have multiple sockets open
@@ -208,11 +219,6 @@ aprs = APRS()
 
 # tx msg buffer
 txmsgs = []
-
-# configure watchdog
-w.timeout = 5
-w.mode = WatchDogMode.RESET
-w.feed()
 
 # configure tcp socket
 s = pool.socket(type=pool.SOCK_STREAM)
