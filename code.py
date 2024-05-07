@@ -23,7 +23,7 @@ from watchdog import WatchDogMode
 import config
 
 # software release
-RELEASE = "0.0.5"
+RELEASE = "0.0.6"
 
 # stop autoreloading
 supervisor.runtime.autoreload = False
@@ -427,6 +427,9 @@ async def loraRunner(loop):
                             f"loraRunner: RX: RSSI:{rfm9x.last_rssi} SNR:{rfm9x.last_snr} Data:{rawdata}"
                         )
                     )
+                    #                    syslog.send(
+                    #                        f"loraRunner: RX: RSSI:{rfm9x.last_rssi} SNR:{rfm9x.last_snr} Data:{rawdata}"
+                    #                    )
                     wifi.pixel_status((100, 100, 0))
                     loop.create_task(tcpPost(rawdata))
                     await asyncio.sleep(0)
@@ -446,6 +449,7 @@ async def loraRunner(loop):
                     w.feed()
                     packet = txmsgs.pop(0)
                     print(red(f"loraRunner: TX: {packet}"))
+                    # syslog.send(f"loraRunner: TX: {packet}")
                     await rfm9x.asend(
                         bytes("{}".format("<"), "UTF-8")
                         + binascii.unhexlify("FF")
