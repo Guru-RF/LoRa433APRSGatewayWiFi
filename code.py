@@ -23,7 +23,7 @@ from watchdog import WatchDogMode
 import config
 
 # software release
-RELEASE = "0.0.8"
+RELEASE = "0.0.9"
 
 # stop autoreloading
 supervisor.runtime.autoreload = False
