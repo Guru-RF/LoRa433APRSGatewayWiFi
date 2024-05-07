@@ -23,7 +23,7 @@ from watchdog import WatchDogMode
 import config
 
 # software release
-RELEASE = "0.0.6"
+RELEASE = "0.0.7"
 
 # stop autoreloading
 supervisor.runtime.autoreload = False
@@ -163,6 +163,11 @@ while now is None:
         pass
 rtc.RTC().datetime = now
 
+# configure watchdog
+w.timeout = 5
+w.mode = WatchDogMode.RESET
+w.feed()
+
 if storage.getmount("/").readonly is False:
     UPDATE_URL = (
         "https://raw.githubusercontent.com/Guru-RF/LoRa433APRSGatewayWiFi/main/ota"
@@ -187,16 +192,12 @@ if storage.getmount("/").readonly is False:
                 with open("ota.py", "wb") as f:
                     for chunk in response.iter_content(chunk_size=32):
                         f.write(chunk)
+                        w.feed()
                 print(yellow("OTA update complete, restarting..."))
                 microcontroller.reset()
         else:
             print(yellow("no OTA update available"))
             print()
-
-# configure watchdog
-w.timeout = 5
-w.mode = WatchDogMode.RESET
-w.feed()
 
 # usyslog
 # until we cannot have multiple sockets open
