@@ -23,7 +23,7 @@ from watchdog import WatchDogMode
 import config
 
 # software release
-RELEASE = "0.0.7"
+RELEASE = "0.0.8"
 
 # stop autoreloading
 supervisor.runtime.autoreload = False
@@ -211,7 +211,7 @@ syslog = usyslog.UDPClient(
     process=VERSION + RELEASE,
 )
 
-syslog.send(f"Booted and running {VERSION} {RELEASE}!")
+syslog.send("Alive and kicking!")
 
 # aprs
 aprs = APRS()
@@ -411,6 +411,9 @@ async def loraRunner(loop):
 
     while True:
         await asyncio.sleep(0)
+        # reboot weekly
+        if time.monotonic() > 604800:
+            microcontroller.reset()
         w.feed()
         timeout = int(loraTimeout) + random.randint(1, 9)
         print(
