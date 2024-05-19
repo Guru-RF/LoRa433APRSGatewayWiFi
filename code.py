@@ -411,20 +411,6 @@ async def aprsMsgFeed():
             # we ignore wrongly formated msgs
 
 
-async def aprsRFBeaconRunner():
-    # send a message every x time (to sync APRSpager's time/date)
-    await asyncio.sleep(10)
-    print(purple("aprsRFBeacon: running"))
-    global txmsgs
-
-    while True:
-        # print(purple("aprsRFBeaconRunner: Queue Beacon Packet"))
-        timestamp = str(time.time())
-        packet = f"{config.call}>APRFGD,RFONLY,WIDE1-1::APRFGD:{timestamp}"
-        txmsgs.append(packet)
-        await asyncio.sleep(15 * 60)
-
-
 async def loraRunner(loop):
     await asyncio.sleep(5)
     global w, txmsgs
@@ -441,6 +427,8 @@ async def loraRunner(loop):
     )
     if igate is False:
         rfm9x.tx_power = 23
+
+    lastBeacon = time.monotonic() - 900
 
     while True:
         await asyncio.sleep(0)
@@ -477,6 +465,27 @@ async def loraRunner(loop):
                     print(purple("loraRunner: Lost Packet, unable to decode, skipping"))
                     continue
         if igate is False:
+            # send a beacon every 15 minutes
+            if lastBeacon + 900 < time.monotonic():
+                lastBeacon = time.monotonic()
+                timestamp = str(time.time())
+                packet = f"{config.call}>APRFGD,RFONLY,WIDE1-1::APRFGD:{timestamp}"
+                biast.value = False
+                transmit.value = True
+                pa.value = True
+                print(red(f"loraRunner: TX: {packet}"))
+                # syslog.send(f"loraRunner: TX: {packet}")
+                await rfm9x.asend(
+                    bytes("{}".format("<"), "UTF-8")
+                    + binascii.unhexlify("FF")
+                    + binascii.unhexlify("01")
+                    + bytes("{}".format(packet), "UTF-8"),
+                )
+                w.feed()
+                pa.value = False
+                transmit.value = False
+                if config.biast is True:
+                    biast.value = True
             if len(txmsgs) != 0:
                 print()
                 biast.value = False
@@ -507,10 +516,9 @@ async def main():
     loop = asyncio.get_event_loop()
     loraR = asyncio.create_task(loraRunner(loop))
     loraA = asyncio.create_task(iGateAnnounce())
-    loraB = asyncio.create_task(aprsRFBeaconRunner())
     if igate is False:
         loraM = asyncio.create_task(aprsMsgFeed())
-        await asyncio.gather(loraA, loraM, loraR, loraB)
+        await asyncio.gather(loraA, loraM, loraR)
     else:
         await asyncio.gather(loraA, loraR)
 
