@@ -411,6 +411,20 @@ async def aprsMsgFeed():
             # we ignore wrongly formated msgs
 
 
+async def aprsRFBeaconRunner():
+    # send a message every x time (to sync APRSpager's time/date)
+    await asyncio.sleep(10)
+    print(purple("aprsRFBeacon: running"))
+    global txmsgs
+
+    while True:
+        # print(purple("aprsRFBeaconRunner: Queue Beacon Packet"))
+        timestamp = str(time.time())
+        packet = f"{config.call}>APRFGD,RFONLY,WIDE1-1::APRFGD:{timestamp}"
+        txmsgs.append(packet)
+        await asyncio.sleep(15 * 60)
+
+
 async def loraRunner(loop):
     await asyncio.sleep(5)
     global w, txmsgs
@@ -493,9 +507,10 @@ async def main():
     loop = asyncio.get_event_loop()
     loraR = asyncio.create_task(loraRunner(loop))
     loraA = asyncio.create_task(iGateAnnounce())
+    loraB = asyncio.create_task(aprsRFBeaconRunner())
     if igate is False:
         loraM = asyncio.create_task(aprsMsgFeed())
-        await asyncio.gather(loraA, loraM, loraR)
+        await asyncio.gather(loraA, loraM, loraR, loraB)
     else:
         await asyncio.gather(loraA, loraR)
 
