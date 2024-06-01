@@ -473,6 +473,7 @@ async def loraRunner(loop):
                 biast.value = False
                 transmit.value = True
                 pa.value = True
+                await asyncio.sleep(int(config.paDelay))
                 print(red(f"loraRunner: TX: {packet}"))
                 # syslog.send(f"loraRunner: TX: {packet}")
                 await rfm9x.asend(
@@ -491,6 +492,7 @@ async def loraRunner(loop):
                 biast.value = False
                 transmit.value = True
                 pa.value = True
+                await asyncio.sleep(int(config.paDelay))
                 while len(txmsgs) != 0:
                     w.feed()
                     packet = txmsgs.pop(0)
