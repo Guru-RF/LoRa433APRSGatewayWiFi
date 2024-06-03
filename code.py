@@ -469,7 +469,7 @@ async def loraRunner(loop):
             if lastBeacon + 900 < time.monotonic():
                 lastBeacon = time.monotonic()
                 timestamp = str(time.time())
-                packet = f"{config.call}>APRFGD,RFONLY,WIDE1-1::APRFGD:{timestamp}"
+                packet = f"{config.call}>APRFGD,RFONLY,WIDE1-1::APRFGD:{timestamp}|{config.latitude}|{config.longitude}"
                 biast.value = False
                 transmit.value = True
                 pa.value = True
