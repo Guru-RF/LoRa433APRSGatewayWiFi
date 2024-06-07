@@ -136,6 +136,7 @@ RED_LED = PWMOut.PWMOut(esp, 25)
 GREEN_LED = PWMOut.PWMOut(esp, 26)
 BLUE_LED = PWMOut.PWMOut(esp, 27)
 status_light = adafruit_rgbled.RGBLED(RED_LED, GREEN_LED, BLUE_LED)
+esp.set_hostname(config.call + "-APRS-iGate")
 wifi = adafruit_esp32spi_wifimanager.ESPSPI_WiFiManager(esp, secrets, status_light)
 
 ## Connect to WiFi
