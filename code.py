@@ -424,7 +424,7 @@ async def loraRunner(loop):
     RESET = DigitalInOut(board.GP20)
     spi = busio.SPI(board.GP10, MOSI=board.GP11, MISO=board.GP8)
     rfm9x = adafruit_rfm9x.RFM9x(
-        spi, CS, RESET, RADIO_FREQ_MHZ, baudrate=1000000, agc=False, crc=True
+        spi, CS, RESET, RADIO_FREQ_MHZ, baudrate=1000000, agc=True, crc=True
     )
     if igate is False:
         rfm9x.tx_power = 23
