@@ -136,6 +136,7 @@ RED_LED = PWMOut.PWMOut(esp, 25)
 GREEN_LED = PWMOut.PWMOut(esp, 26)
 BLUE_LED = PWMOut.PWMOut(esp, 27)
 status_light = adafruit_rgbled.RGBLED(RED_LED, GREEN_LED, BLUE_LED)
+esp.set_hostname(config.call + "-APRS-iGate")
 wifi = adafruit_esp32spi_wifimanager.ESPSPI_WiFiManager(esp, secrets, status_light)
 
 ## Connect to WiFi
@@ -469,10 +470,11 @@ async def loraRunner(loop):
             if lastBeacon + 900 < time.monotonic():
                 lastBeacon = time.monotonic()
                 timestamp = str(time.time())
-                packet = f"{config.call}>APRFGD,RFONLY,WIDE1-1::APRFGD:{timestamp}"
+                packet = f"{config.call}>APRFGD,RFONLY,WIDE1-1::APRFGD:{timestamp}|{config.latitude}|{config.longitude}"
                 biast.value = False
                 transmit.value = True
                 pa.value = True
+                await asyncio.sleep(int(config.paDelay))
                 print(red(f"loraRunner: TX: {packet}"))
                 # syslog.send(f"loraRunner: TX: {packet}")
                 await rfm9x.asend(
@@ -491,6 +493,7 @@ async def loraRunner(loop):
                 biast.value = False
                 transmit.value = True
                 pa.value = True
+                await asyncio.sleep(int(config.paDelay))
                 while len(txmsgs) != 0:
                     w.feed()
                     packet = txmsgs.pop(0)

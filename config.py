@@ -18,6 +18,7 @@ symbol = "L&"
 # symbol = "R&"
 # Features
 biast = False
+paDelay = 0  # in seconds
 
 
 # Gateway only
